@@ -1,9 +1,12 @@
 @import "submenu.less";
 @import "bootstrap-tagsinput.less";
 
-.grafana-dashboard-hide-controls {
+.hide-controls {
   padding: 0;
   .grafana-row {
+    display: none;
+  }
+  .submenu-controls {
     display: none;
   }
 }
@@ -114,10 +117,17 @@
   left: 0px;
   right: 0px;
   top: 54px;
-  bottom: 0px;
+  height: 100%;
   padding: 0 10px;
   background: @kibanaPanelBackground;
+  overflow-y: scroll;
+  height: 100%;
+
+  .panel-content {
+    padding-bottom: 130px;
+  }
 }
+
 
 .dashboard-fullscreen .container-fluid.main {
   height: 0px;
@@ -144,13 +154,6 @@
     position: relative;
     top: 2px;
   }
-}
-
-.histogram-legend-dot {
-  display:inline-block;
-  height:10px;
-  width:10px;
-  border-radius:5px;
 }
 
 .histogram-legend-item {
@@ -246,6 +249,11 @@
   }
 }
 
+// fix for fixed positioned panel & scrolling
+.grafana-segment-dropdown-menu {
+  margin-bottom: 70px;
+}
+
 .grafana-target-segment {
   padding: 5px 7px;
   display: inline-block;
@@ -310,13 +318,30 @@
 
 input[type=text].grafana-target-text-input {
   padding: 5px 7px;
-  border: 1px solid @grafanaTargetSegmentBorder;
+  border: none;
   margin: 0px;
   background: transparent;
-  width: 80%;
   float: left;
   color: @grafanaTargetColor;
   border-radius: 0;
+}
+
+input[type=text].grafana-target-segment-input {
+  border: none;
+  border-right: 1px solid @grafanaTargetSegmentBorder;
+  margin: 0px;
+  border-radius: 0;
+  height: 22px;
+  line-height: 22px;
+}
+
+select.grafana-target-segment-input {
+  border: none;
+  border-right: 1px solid @grafanaTargetSegmentBorder;
+  margin: 0px;
+  border-radius: 0;
+  height: 30px;
+  line-height: 30px;
 }
 
 .grafana-target .dropdown {
@@ -425,4 +450,31 @@ input[type=text].func-param {
   border: none;
 }
 
+.sp-dd {
+  display: none;
+}
 
+.sp-preview {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  border: none;
+  margin-right: 5px;
+  float: left;
+  z-index: 0;
+}
+
+.datapoints-warning {
+  pointer: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  margin-top: -50px;
+  margin-left: -100px;
+  width: 200px;
+  text-align: center;
+  cursor: auto;
+  //background: rgba(50,50,50,0.8);
+  padding: 10px;
+}

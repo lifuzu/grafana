@@ -20,7 +20,6 @@ function (angular, $, kbn, moment, _) {
 
         scope.$on('refresh',function() {
           if (scope.otherPanelInFullscreenMode()) { return; }
-
           scope.get_data();
         });
 
@@ -76,9 +75,6 @@ function (angular, $, kbn, moment, _) {
             }
           });
 
-          // Set barwidth based on specified interval
-          var barwidth = kbn.interval_to_ms(scope.interval);
-
           var stack = panel.stack ? true : null;
 
           // Populate element
@@ -97,7 +93,7 @@ function (angular, $, kbn, moment, _) {
               bars:   {
                 show: panel.bars,
                 fill: 1,
-                barWidth: barwidth/1.5,
+                barWidth: 1,
                 zero: false,
                 lineWidth: 0
               },
@@ -110,17 +106,9 @@ function (angular, $, kbn, moment, _) {
               shadowSize: 1
             },
             yaxes: [],
-            xaxis: {
-              timezone: dashboard.current.timezone,
-              show: panel['x-axis'],
-              mode: "time",
-              min: _.isUndefined(scope.range.from) ? null : scope.range.from.getTime(),
-              max: _.isUndefined(scope.range.to) ? null : scope.range.to.getTime(),
-              timeformat: time_format(scope.interval),
-              label: "Datetime",
-              ticks: elem.width()/100
-            },
+            xaxis: {},
             grid: {
+              markings: [],
               backgroundColor: null,
               borderWidth: 0,
               hoverable: true,
@@ -137,6 +125,11 @@ function (angular, $, kbn, moment, _) {
             data[i].data = _d;
           }
 
+          if (panel.bars && data.length && data[0].info.timeStep) {
+            options.series.bars.barWidth = data[0].info.timeStep / 1.5;
+          }
+
+          addTimeAxis(options);
           addGridThresholds(options, panel);
           addAnnotations(options);
           configureAxisOptions(data, options);
@@ -145,6 +138,188 @@ function (angular, $, kbn, moment, _) {
 
           addAxisLabels();
         }
+
+        function addTimeAxis(options) {
+          var ticks = elem.width() / 100;
+          var min = _.isUndefined(scope.range.from) ? null : scope.range.from.getTime();
+          var max = _.isUndefined(scope.range.to) ? null : scope.range.to.getTime();
+
+          options.xaxis = {
+            timezone: dashboard.current.timezone,
+            show: scope.panel['x-axis'],
+            mode: "time",
+            min: min,
+            max: max,
+            label: "Datetime",
+            ticks: ticks,
+            timeformat: time_format(scope.interval, ticks, min, max),
+          };
+        }
+
+        function addGridThresholds(options, panel) {
+          if (panel.grid.threshold1) {
+            var limit1 = panel.grid.thresholdLine ? panel.grid.threshold1 : (panel.grid.threshold2 || null);
+            options.grid.markings.push({
+              yaxis: { from: panel.grid.threshold1, to: limit1 },
+              color: panel.grid.threshold1Color
+            });
+
+            if (panel.grid.threshold2) {
+              var limit2;
+              if (panel.grid.thresholdLine) {
+                limit2 = panel.grid.threshold2;
+              } else {
+                limit2 = panel.grid.threshold1 > panel.grid.threshold2 ?  -Infinity : +Infinity;
+              }
+              options.grid.markings.push({
+                yaxis: { from: panel.grid.threshold2, to: limit2 },
+                color: panel.grid.threshold2Color
+              });
+            }
+          }
+        }
+
+        function addAnnotations(options) {
+          if(!data.annotations || data.annotations.length === 0) {
+            return;
+          }
+
+          var types = {};
+
+          _.each(data.annotations, function(event) {
+            if (!types[event.annotation.name]) {
+              types[event.annotation.name] = {
+                level: _.keys(types).length + 1,
+                icon: {
+                  icon: "icon-chevron-down",
+                  size: event.annotation.iconSize,
+                  color: event.annotation.iconColor,
+                }
+              };
+            }
+
+            if (event.annotation.showLine) {
+              options.grid.markings.push({
+                color: event.annotation.lineColor,
+                lineWidth: 1,
+                xaxis: { from: event.min, to: event.max }
+              });
+            }
+          });
+
+          options.events = {
+            levels: _.keys(types).length + 1,
+            data: data.annotations,
+            types: types
+          };
+        }
+
+        function addAxisLabels() {
+          if (scope.panel.leftYAxisLabel) {
+            elem.css('margin-left', '10px');
+            var yaxisLabel = $("<div class='axisLabel yaxisLabel'></div>")
+              .text(scope.panel.leftYAxisLabel)
+              .appendTo(elem);
+
+            yaxisLabel.css("margin-top", yaxisLabel.width() / 2 - 20);
+          } else if (elem.css('margin-left')) {
+            elem.css('margin-left', '');
+          }
+        }
+
+        function configureAxisOptions(data, options) {
+          var defaults = {
+            position: 'left',
+            show: scope.panel['y-axis'],
+            min: scope.panel.grid.min,
+            max: scope.panel.percentage && scope.panel.stack ? 100 : scope.panel.grid.max,
+          };
+
+          options.yaxes.push(defaults);
+
+          if (_.findWhere(data, {yaxis: 2})) {
+            var secondY = _.clone(defaults);
+            secondY.position = 'right';
+            options.yaxes.push(secondY);
+            configureAxisMode(options.yaxes[1], scope.panel.y_formats[1]);
+          }
+
+          configureAxisMode(options.yaxes[0], scope.panel.y_formats[0]);
+        }
+
+        function configureAxisMode(axis, format) {
+          if (format === 'bytes') {
+            axis.mode = 'byte';
+          }
+          else if (format !== 'none') {
+            axis.tickFormatter = kbn.getFormatFunction(format, 1);
+          }
+        }
+
+        function time_format(interval, ticks, min, max) {
+          var _int = kbn.interval_to_seconds(interval);
+          if(_int >= 2628000) {
+            return "%Y-%m";
+          }
+          if(_int >= 10000) {
+            return "%m/%d";
+          }
+          if(_int >= 3600) {
+            return "%m/%d %H:%M";
+          }
+          if(_int >= 700) {
+            return "%a %H:%M";
+          }
+
+          if (min && max && ticks) {
+            var msPerTick = (max - min) / ticks;
+            if (msPerTick <= 45000) {
+              return "%H:%M:%S";
+            }
+          }
+
+          return "%H:%M";
+        }
+
+        var $tooltip = $('<div>');
+
+        elem.bind("plothover", function (event, pos, item) {
+          var group, value, timestamp, seriesInfo, format;
+
+          if (item) {
+            seriesInfo = item.series.info;
+            format = scope.panel.y_formats[seriesInfo.yaxis - 1];
+
+            if (seriesInfo.alias) {
+              group = '<small style="font-size:0.9em;">' +
+                '<i class="icon-circle" style="color:'+item.series.color+';"></i>' + ' ' +
+                (seriesInfo.alias || seriesInfo.query)+
+              '</small><br>';
+            } else {
+              group = kbn.query_color_dot(item.series.color, 15) + ' ';
+            }
+
+            if (scope.panel.stack && scope.panel.tooltip.value_type === 'individual') {
+              value = item.datapoint[1] - item.datapoint[2];
+            }
+            else {
+              value = item.datapoint[1];
+            }
+
+            value = kbn.getFormatFunction(format, 2)(value);
+
+            timestamp = dashboard.current.timezone === 'browser' ?
+              moment(item.datapoint[0]).format('YYYY-MM-DD HH:mm:ss') :
+              moment.utc(item.datapoint[0]).format('YYYY-MM-DD HH:mm:ss');
+            $tooltip
+              .html(
+                group + value + " @ " + timestamp
+              )
+              .place_tt(pos.pageX, pos.pageY);
+          } else {
+            $tooltip.detach();
+          }
+        });
 
         function render_panel_as_graphite_png(url) {
           url += '&width=' + elem.width();
@@ -187,155 +362,6 @@ function (angular, $, kbn, moment, _) {
 
           elem.html('<img src="' + url + '"></img>');
         }
-
-        function addGridThresholds(options, panel) {
-          if (panel.grid.threshold1) {
-            var limit1 = panel.grid.thresholdLine ? panel.grid.threshold1 : (panel.grid.threshold2 || null);
-            options.grid.markings = [];
-            options.grid.markings.push({
-              yaxis: { from: panel.grid.threshold1, to: limit1 },
-              color: panel.grid.threshold1Color
-            });
-
-            if (panel.grid.threshold2) {
-              var limit2;
-              if (panel.grid.thresholdLine) {
-                limit2 = panel.grid.threshold2;
-              } else {
-                limit2 = panel.grid.threshold1 > panel.grid.threshold2 ?  -Infinity : +Infinity;
-              }
-              options.grid.markings.push({
-                yaxis: { from: panel.grid.threshold2, to: limit2 },
-                color: panel.grid.threshold2Color
-              });
-            }
-          }
-        }
-
-        function addAnnotations(options) {
-          if(!data.annotations || data.annotations.length === 0) {
-            return;
-          }
-
-          options.events = {
-            levels: 1,
-            data: data.annotations,
-            types: {
-              'annotation': {
-                level: 1,
-                icon: {
-                  icon: "icon-tag icon-flip-vertical",
-                  size: 20,
-                  color: "#222",
-                  outline: "#bbb"
-                }
-              }
-            }
-          };
-        }
-
-        function addAxisLabels() {
-          if (scope.panel.leftYAxisLabel) {
-            elem.css('margin-left', '10px');
-            var yaxisLabel = $("<div class='axisLabel yaxisLabel'></div>")
-              .text(scope.panel.leftYAxisLabel)
-              .appendTo(elem);
-
-            yaxisLabel.css("margin-top", yaxisLabel.width() / 2 - 20);
-          } else if (elem.css('margin-left')) {
-            elem.css('margin-left', '');
-          }
-        }
-
-        function configureAxisOptions(data, options) {
-          var defaults = {
-            position: 'left',
-            show: scope.panel['y-axis'],
-            min: scope.panel.grid.min,
-            max: scope.panel.percentage && scope.panel.stack ? 100 : scope.panel.grid.max,
-          };
-
-          options.yaxes.push(defaults);
-
-          if (_.findWhere(data, {yaxis: 2})) {
-            var secondY = _.clone(defaults);
-            secondY.position = 'right';
-            options.yaxes.push(secondY);
-            configureAxisMode(options.yaxes[1], scope.panel.y_formats[1]);
-          }
-
-          configureAxisMode(options.yaxes[0], scope.panel.y_formats[0]);
-        }
-
-        function configureAxisMode(axis, format) {
-          if (format === 'bytes') {
-            axis.mode = "byte";
-          }
-          if (format === 'short') {
-            axis.tickFormatter = function(val) {
-              return kbn.shortFormat(val, 1);
-            };
-          }
-          if (format === 'ms') {
-            axis.tickFormatter = kbn.msFormat;
-          }
-        }
-
-        function time_format(interval) {
-          var _int = kbn.interval_to_seconds(interval);
-          if(_int >= 2628000) {
-            return "%Y-%m";
-          }
-          if(_int >= 10000) {
-            return "%m/%d";
-          }
-          if(_int >= 3600) {
-            return "%m/%d %H:%M";
-          }
-          if(_int >= 700) {
-            return "%a %H:%M";
-          }
-
-          return "%H:%M";
-        }
-
-        var $tooltip = $('<div>');
-
-        elem.bind("plothover", function (event, pos, item) {
-          var group, value, timestamp;
-          if (item) {
-            if (item.series.info.alias || scope.panel.tooltip.query_as_alias) {
-              group = '<small style="font-size:0.9em;">' +
-                '<i class="icon-circle" style="color:'+item.series.color+';"></i>' + ' ' +
-                (item.series.info.alias || item.series.info.query)+
-              '</small><br>';
-            } else {
-              group = kbn.query_color_dot(item.series.color, 15) + ' ';
-            }
-            value = (scope.panel.stack && scope.panel.tooltip.value_type === 'individual') ?
-              item.datapoint[1] - item.datapoint[2] :
-              item.datapoint[1];
-            if(item.series.info.y_format === 'bytes') {
-              value = kbn.byteFormat(value, 2);
-            }
-            if(item.series.info.y_format === 'short') {
-              value = kbn.shortFormat(value, 2);
-            }
-            if(item.series.info.y_format === 'ms') {
-              value = kbn.msFormat(value);
-            }
-            timestamp = dashboard.current.timezone === 'browser' ?
-              moment(item.datapoint[0]).format('YYYY-MM-DD HH:mm:ss') :
-              moment.utc(item.datapoint[0]).format('YYYY-MM-DD HH:mm:ss');
-            $tooltip
-              .html(
-                group + value + " @ " + timestamp
-              )
-              .place_tt(pos.pageX, pos.pageY);
-          } else {
-            $tooltip.detach();
-          }
-        });
 
         elem.bind("plotselected", function (event, ranges) {
           filterSrv.setTime({

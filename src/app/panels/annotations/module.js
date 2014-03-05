@@ -28,7 +28,12 @@ function (angular, app, _) {
 
     var annotationDefaults = {
       name: '',
-      type: 'graphite metric'
+      type: 'graphite metric',
+      showLine: true,
+      iconColor: '#C0C6BE',
+      lineColor: 'rgba(255, 96, 96, 0.592157)',
+      iconSize: 13,
+      enable: true
     };
 
     _.defaults($scope.panel,_d);
@@ -38,17 +43,9 @@ function (angular, app, _) {
       $scope.currentIsNew = true;
     };
 
-    $scope.getAnnotationInfo = function(annotation) {
-      return annotation.target;
-    };
-
     $scope.edit = function(annotation) {
       $scope.currentAnnnotation = annotation;
       $scope.currentIsNew = false;
-    };
-
-    $scope.getInfo = function(annotation) {
-      return annotation.target;
     };
 
     $scope.update = function() {

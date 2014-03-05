@@ -2,24 +2,41 @@ define([
   'angular',
   'underscore',
   'config',
-  './graphite/graphiteDatasource'
+  './graphite/graphiteDatasource',
+  './influxdb/influxdbDatasource',
 ],
-function (angular, _, config, GraphiteDatasource) {
+function (angular, _, config) {
   'use strict';
 
   var module = angular.module('kibana.services');
 
-  module.service('datasourceSrv', function($q, filterSrv, $http) {
-    var defaultDatasource = _.findWhere(_.values(config.datasources), { default: true } );
+  module.service('datasourceSrv', function($q, filterSrv, $http, GraphiteDatasource, InfluxDatasource) {
 
-    this.default = new GraphiteDatasource(defaultDatasource, $q, filterSrv, $http);
+    this.init = function() {
+
+      var defaultDatasource = _.findWhere(_.values(config.datasources), { default: true } );
+      this.default = this.datasourceFactory(defaultDatasource);
+
+    };
+
+    this.datasourceFactory = function(ds) {
+      switch(ds.type) {
+      case 'graphite':
+        return new GraphiteDatasource(ds);
+      case 'influxdb':
+        return new InfluxDatasource(ds);
+      }
+    };
 
     this.get = function(name) {
-      if (!name) {
-        return this.default;
+      if (!name) { return this.default; }
+
+      var ds = config.datasources[name];
+      if (!ds) {
+        return null;
       }
 
-      return new GraphiteDatasource(config.datasources[name], $q, filterSrv, $http);
+      return this.datasourceFactory(ds);
     };
 
     this.listOptions = function() {
@@ -30,5 +47,7 @@ function (angular, _, config, GraphiteDatasource) {
         };
       });
     };
+
+    this.init();
   });
 });

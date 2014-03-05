@@ -34,34 +34,40 @@ function (_, crypto) {
       settings[key] = typeof options[key] !== 'undefined' ? options[key]  : defaults[key];
     });
 
-    var basicAuth = function(url) {
-      var passwordAt = url.indexOf('@');
-      if (passwordAt > 0) {
-        var userStart = url.indexOf('//') + 2;
-        var userAndPassword = url.substring(userStart, passwordAt);
+    var parseBasicAuth = function(datasource) {
+      var passwordEnd = datasource.url.indexOf('@');
+      if (passwordEnd > 0) {
+        var userStart = datasource.url.indexOf('//') + 2;
+        var userAndPassword = datasource.url.substring(userStart, passwordEnd);
         var bytes = crypto.charenc.Binary.stringToBytes(userAndPassword);
-        var base64 = crypto.util.bytesToBase64(bytes);
-        return base64;
+        datasource.basicAuth = crypto.util.bytesToBase64(bytes);
+
+        var urlHead = datasource.url.substring(0, userStart);
+        datasource.url = urlHead + datasource.url.substring(passwordEnd + 1);
       }
+
+      return datasource;
     };
 
     if (options.graphiteUrl) {
       settings.datasources = {
         graphite: {
-          name: 'default',
+          type: 'graphite',
           url: options.graphiteUrl,
-          default: true,
-          basicAuth: basicAuth(options.graphiteUrl)
+          default: true
         }
       };
     }
-    else {
-      _.each(_.values(settings.datasources), function(source) {
-        source.basicAuth = basicAuth(source.url);
-      });
-    }
 
-    settings.elasticsearchBasicAuth = basicAuth(settings.elasticsearch);
+    _.each(settings.datasources, function(datasource, key) {
+      datasource.name = key;
+      parseBasicAuth(datasource);
+    });
+
+    var elasticParsed = parseBasicAuth({ url: settings.elasticsearch });
+    settings.elasticsearchBasicAuth = elasticParsed.basicAuth;
+    settings.elasticsearch = elasticParsed.url;
+
     return settings;
   };
 });

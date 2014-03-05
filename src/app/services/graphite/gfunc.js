@@ -77,6 +77,13 @@ function (_) {
   });
 
   addFuncDef({
+    name: "stacked",
+    category: categories.Special,
+    params: [ { name: "stack", type: 'string' } ],
+    defaultParams: ['stacked']
+  });
+
+  addFuncDef({
     name: "groupByNode",
     category: categories.Special,
     params: [
@@ -200,7 +207,63 @@ function (_) {
   });
 
   addFuncDef({
+    name: 'currentAbove',
+    category: categories.Filter,
+    params: [ { name: "n", type: "int", } ],
+    defaultParams: [25]
+  }); 
+
+  addFuncDef({
+    name: 'currentBelow',
+    category: categories.Filter,
+    params: [ { name: "n", type: "int", } ],
+    defaultParams: [25]
+  }); 
+
+  addFuncDef({
+    name: "exclude",
+    category: categories.Filter,
+    params: [ { name: "exclude", type: 'string' } ],
+    defaultParams: ['exclude']
+  });
+
+  addFuncDef({
     name: 'highestCurrent',
+    category: categories.Filter,
+    params: [ { name: "count", type: "int" } ],
+    defaultParams: [5]
+  });
+
+  addFuncDef({
+    name: 'highestMax',
+    category: categories.Filter,
+    params: [ { name: "count", type: "int" } ],
+    defaultParams: [5]
+  });
+
+  addFuncDef({
+    name: 'lowestCurrent',
+    category: categories.Filter,
+    params: [ { name: "count", type: "int" } ],
+    defaultParams: [5]
+  });
+
+  addFuncDef({
+    name: 'movingAverage',
+    category: categories.Filter,
+    params: [ { name: "window size", type: "int" } ],
+    defaultParams: [10]
+  });
+
+  addFuncDef({
+    name: 'highestAverage',
+    category: categories.Filter,
+    params: [ { name: "count", type: "int" } ],
+    defaultParams: [5]
+  });
+
+  addFuncDef({
+    name: 'lowestAverage',
     category: categories.Filter,
     params: [ { name: "count", type: "int" } ],
     defaultParams: [5]
@@ -253,6 +316,10 @@ function (_) {
         funcDef = index[funcDef];
       }
       return new FuncInstance(funcDef);
+    },
+
+    getFuncDef: function(name) {
+      return index[name];
     },
 
     getCategories: function() {
